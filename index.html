@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>บันทึกน้ำหนักประจำวัน</title>
+  <!-- โหลด LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; text-align: center; padding: 20px; background-color: #f8f9fa; }
+    .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); max-width: 400px; margin: 0 auto; }
+    h2 { color: #0275d8; margin-bottom: 5px; font-size: 22px; }
+    .greeting { color: #555; font-size: 16px; margin-bottom: 20px; font-weight: bold; }
+    label { font-size: 18px; font-weight: bold; color: #333; display: block; margin-top: 15px; }
+    
+    /* ช่องกรอกตัวเลขขนาดใหญ่ กดง่าย */
+    input[type="number"] {
+      width: 100%;
+      padding: 15px;
+      margin-top: 10px;
+      font-size: 32px;
+      text-align: center;
+      border: 2px solid #06C755;
+      border-radius: 12px;
+      box-sizing: border-box;
+      outline: none;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 25px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background-color: #06C755;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    button:active { background-color: #05a044; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>⚖️ ชั่งน้ำหนักเช้านี้</h2>
+    <!-- แสดงชื่อทักทายคนไข้ให้มั่นใจว่าดึง LINE มาถูกคน -->
+    <div id="userGreeting" class="greeting">กำลังโหลดข้อมูล LINE...</div>
+
+    <!-- ฟอร์มกรอกตัวเลขอย่างเดียว -->
+    <form id="weightForm">
+      <label for="weightInput">น้ำหนักตัว (กิโลกรัม):</label>
+      <input type="number" id="weightInput" step="0.1" placeholder="00.0" inputmode="decimal" required>
+
+      <button type="button" onclick="submitData()">บันทึกข้อมูล</button>
+    </form>
+  </div>
+
+  <script>
+    // 1. ใส่ URL จาก Power Automate และ LIFF ID ของคุณ
+    const POWER_AUTOMATE_URL = "https://apps.powerapps.com/play/e/default-325c40be-6d2b-4006-b2c5-078947c856d2/a/a17fa249-9d9b-4549-9d41-29b06693fcda?tenantId=325c40be-6d2b-4006-b2c5-078947c856d2&hint=3ac8df01-87f1-41b3-8e62-5649e308acc9&sourcetime=1790131202238";
+    const LIFF_ID = "https://liff.line.me/2011702853-WnZhtRJP";
+
+    let lineProfile = null;
+
+    // 2. ดึงโปรไฟล์ LINE ของคนไข้ทันทีที่เปิดหน้าเว็บ
+    async function initLIFF() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          // ดึงโปรไฟล์ LINE อัตโนมัติ (ได้ทั้ง User ID และ Display Name)
+          lineProfile = await liff.getProfile();
+          document.getElementById("userGreeting").innerText = "สวัสดีครับ คุณ " + lineProfile.displayName;
+        }
+      } catch (err) {
+        console.error("LIFF Error:", err);
+        document.getElementById("userGreeting").innerText = "ไม่สามารถเชื่อมต่อ LINE ได้";
+      }
+    }
+    initLIFF();
+
+    // 3. ฟังก์ชันส่งข้อมูลเข้า Excel บน OneDrive
+    async function submitData() {
+      const weightVal = document.getElementById("weightInput").value;
+
+      if (!weightVal || weightVal <= 0) {
+        alert("กรุณากรอกตัวเลขน้ำหนักให้ถูกต้องครับ");
+        return;
+      }
+
+      if (!lineProfile) {
+        alert("ไม่พบข้อมูลผู้ใช้ LINE กรุณาลองเปิดแอปใหม่อีกครั้ง");
+        return;
+      }
+
+      // ดึง LINE User ID และชื่อโปรไฟล์ส่งไปพร้อมกับน้ำหนักโดยที่คนไข้ไม่ต้องพิมพ์
+      const payload = {
+        timestamp: new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
+        userId: lineProfile.userId,            // รหัสประจำตัว LINE (เช่น U1234567890abcdef...)
+        patientName: lineProfile.displayName,  // ชื่อโปรไฟล์ LINE
+        weight: parseFloat(weightVal)          // ตัวเลขน้ำหนักที่คนไข้พิมพ์
+      };
+
+      try {
+        await fetch(POWER_AUTOMATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        alert("บันทึกน้ำหนัก " + weightVal + " กก. เรียบร้อยแล้วครับ!");
+        liff.closeWindow(); // ปิดหน้าต่าง LIFF ทันที
+      } catch (error) {
+        alert("เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง");
+        console.error(error);
+      }
+    }
+  </script>
+
+</body>
+</html>
