@@ -1,149 +1,41 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHF Clinic - บันทึกสุขภาพประจำวัน</title>
-    <!-- โหลด LIFF SDK -->
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 15px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 480px; margin: 0 auto; }
-        h2 { color: #0056b3; text-align: center; margin-top: 0; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-        .section-title { background: #e9ecef; padding: 8px 12px; border-radius: 6px; font-weight: bold; color: #495057; margin-top: 20px; }
-        button { width: 100%; background-color: #28a745; color: white; border: none; padding: 12px; font-size: 18px; border-radius: 6px; cursor: pointer; margin-top: 20px; }
-        button:hover { background-color: #218838; }
-        .loading { text-align: center; color: #666; margin-bottom: 15px; }
-    </style>
-</head>
-<body>
+// เปลี่ยน URL เป็นของ Make.com
+const MAKE_WEBHOOK_URL = "YOUR_MAKE_CUSTOM_WEBHOOK_URL";
 
-<div class="card">
-    <h2>CHF Clinic Daily Log</h2>
-    
-    <!-- แสดงสถานะการโหลด LINE Profile -->
-    <div id="loadingStatus" class="loading">กำลังยืนยันตัวตนผ่าน LINE...</div>
+document.getElementById("healthForm").addEventListener("submit", async function(e) {
+  e.preventDefault();
+  
+  const submitBtn = document.getElementById("submitBtn");
+  submitBtn.disabled = true;
+  submitBtn.innerText = "กำลังบันทึกลง OneDrive...";
 
-    <form id="chfForm" style="display: none;">
-        <!-- 1. น้ำหนัก -->
-        <div class="section-title">⚖️ บันทึกน้ำหนักประจำวัน</div>
-        <div class="form-group" style="margin-top: 10px;">
-            <label for="weight">น้ำหนักตัว (กิโลกรัม)</label>
-            <input type="number" step="0.1" id="weight" placeholder="เช่น 65.5">
-        </div>
-        <div class="form-group">
-            <label for="symptoms">อาการผิดปกติ</label>
-            <select id="symptoms">
-                <option value="ปกติ">ปกติ (ไม่มีอาการ)</option>
-                <option value="เท้าบวม">มีอาการเท้าบวม</option>
-                <option value="เหนื่อยราบไม่ได้">เหนื่อยหอบ / นอนราบไม่ได้</option>
-            </select>
-        </div>
+  const payload = {
+    userId: document.getElementById("userId").value,
+    weight: document.getElementById("weight").value,
+    symptoms: document.getElementById("symptoms").value,
+    sys: document.getElementById("sys").value,
+    dia: document.getElementById("dia").value,
+    hr: document.getElementById("hr").value,
+    fluidIn: document.getElementById("fluidIn").value,
+    fluidOut: document.getElementById("fluidOut").value
+  };
 
-        <!-- 2. ความดัน -->
-        <div class="section-title">🩺 บันทึกความดันโลหิต</div>
-        <div class="form-group" style="margin-top: 10px;">
-            <label for="sys">ความดันตัวบน (SYS)</label>
-            <input type="number" id="sys" placeholder="เช่น 120">
-        </div>
-        <div class="form-group">
-            <label for="dia">ความดันตัวล่าง (DIA)</label>
-            <input type="number" id="dia" placeholder="เช่น 80">
-        </div>
-        <div class="form-group">
-            <label for="pulse">ชีพจร / อัตราการเต้นหัวใจ (BPM)</label>
-            <input type="number" id="pulse" placeholder="เช่น 72">
-        </div>
+  try {
+    const res = await fetch(MAKE_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-        <!-- 3. น้ำเข้า-ออก -->
-        <div class="section-title">💧 ปริมาณน้ำเข้า - ปัสสาวะออก</div>
-        <div class="form-group" style="margin-top: 10px;">
-            <label for="intake">ปริมาณน้ำดื่มสะสม (มล.)</label>
-            <input type="number" id="intake" placeholder="เช่น 1500">
-        </div>
-        <div class="form-group">
-            <label for="output">ปริมาณปัสสาวะสะสม (มล.)</label>
-            <input type="number" id="output" placeholder="เช่น 1200">
-        </div>
-
-        <button type="button" onclick="submitData()">ส่งบันทึกข้อมูล</button>
-    </form>
-</div>
-
-<script>
-    // 1. ใส่ LIFF ID และ Webhook URL ของคุณที่นี่
-    const MY_LIFF_ID = "YOUR_LIFF_ID"; 
-    const WEBHOOK_URL = "YOUR_POWER_AUTOMATE_OR_WEBHOOK_URL"; 
-
-    let lineUserId = "";
-
-    // 2. ฟังก์ชันเริ่มทำงานเมื่อเปิดหน้าเว็บ
-    async function initializeLiff() {
-        try {
-            // เริ่มการทำงานของ LIFF SDK
-            await liff.init({ liffId: MY_LIFF_ID });
-
-            // เช็กว่าผู้ใช้ล็อกอิน LINE หรือยัง
-            if (liff.isLoggedIn()) {
-                // ดึงข้อมูล Profile ผู้ใช้งานอัตโนมัติ
-                const profile = await liff.getProfile();
-                lineUserId = profile.userId; // สกัดเอาเฉพาะ LINE User ID
-
-                // ซ่อนข้อความ Loading และแสดงฟอร์ม
-                document.getElementById('loadingStatus').style.display = 'none';
-                document.getElementById('chfForm').style.display = 'block';
-            } else {
-                // ถ้ายังไม่ล็อกอิน ให้ส่งไปหน้าล็อกอินของ LINE
-                liff.login();
-            }
-        } catch (err) {
-            console.error("LIFF Initialization failed", err);
-            document.getElementById('loadingStatus').innerText = "เกิดข้อผิดพลาดในการเชื่อมต่อ LINE";
-        }
+    if (res.ok) {
+      alert("บันทึกข้อมูลลง OneDrive เรียบร้อยแล้ว");
+      liff.closeWindow();
+    } else {
+      throw new Error("เกิดข้อผิดพลาด");
     }
-
-    // เรียกให้ทำงานทันทีเมื่อเปิดหน้าเว็บ
-    initializeLiff();
-
-    // 3. ฟังก์ชันส่งข้อมูลไปยัง OneDrive
-    function submitData() {
-        if (!lineUserId) {
-            alert('ไม่พบ LINE User ID กรุณาลองเปิดใหม่อีกครั้ง');
-            return;
-        }
-
-        // จัดชุดข้อมูลที่จะส่งไปเก็บใน Excel
-        const payload = {
-            timestamp: new Date().toISOString(),
-            lineUserId: lineUserId, // LINE ID ดึงมาจาก Profile อัตโนมัติ
-            weight: document.getElementById('weight').value || null,
-            symptoms: document.getElementById('symptoms').value,
-            sys: document.getElementById('sys').value || null,
-            dia: document.getElementById('dia').value || null,
-            pulse: document.getElementById('pulse').value || null,
-            intake: document.getElementById('intake').value || null,
-            output: document.getElementById('output').value || null
-        };
-
-        // ส่งข้อมูลออกไปยังปลายทาง
-        fetch(WEBHOOK_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        })
-        .then(response => {
-            alert('บันทึกข้อมูลเรียบร้อยแล้ว');
-            liff.closeWindow(); // ปิดหน้าจอ LIFF อัตโนมัติ
-        })
-        .catch(error => {
-            alert('เกิดข้อผิดพลาดในการส่งข้อมูล');
-            console.error(error);
-        });
-    }
-</script>
-
-</body>
-</html>
+  } catch (error) {
+    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    console.error(error);
+    submitBtn.disabled = false;
+    submitBtn.innerText = "บันทึกข้อมูล";
+  }
+});
