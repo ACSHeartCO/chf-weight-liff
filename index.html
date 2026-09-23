@@ -1,41 +1,165 @@
-// เปลี่ยน URL เป็นของ Make.com
-const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/z14fv2ik1vxrt1df713y0mfujssdwc68";
-
-document.getElementById("healthForm").addEventListener("submit", async function(e) {
-  e.preventDefault();
-  
-  const submitBtn = document.getElementById("submitBtn");
-  submitBtn.disabled = true;
-  submitBtn.innerText = "กำลังบันทึกลง OneDrive...";
-
-  const payload = {
-    userId: document.getElementById("userId").value,
-    weight: document.getElementById("weight").value,
-    symptoms: document.getElementById("symptoms").value,
-    sys: document.getElementById("sys").value,
-    dia: document.getElementById("dia").value,
-    hr: document.getElementById("hr").value,
-    fluidIn: document.getElementById("fluidIn").value,
-    fluidOut: document.getElementById("fluidOut").value
-  };
-
-  try {
-    const res = await fetch(MAKE_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      alert("บันทึกข้อมูลลง OneDrive เรียบร้อยแล้ว");
-      liff.closeWindow();
-    } else {
-      throw new Error("เกิดข้อผิดพลาด");
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>บันทึกสุขภาพประจำวันผู้ป่วย CHF</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    body { font-family: 'Sarabun', sans-serif; text-align: center; padding: 20px; background-color: #f4f6f8; }
+    .card { background: white; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); max-width: 450px; margin: 0 auto; text-align: left; }
+    h2 { color: #0275d8; margin-top: 0; text-align: center; font-size: 22px; }
+    .greeting { color: #2e7d32; text-align: center; font-size: 16px; margin-bottom: 20px; font-weight: bold; }
+    
+    label { font-size: 15px; font-weight: bold; color: #333; display: block; margin-top: 12px; }
+    input, select {
+      width: 100%;
+      padding: 12px;
+      margin-top: 5px;
+      font-size: 18px;
+      border: 1.5px solid #06C755;
+      border-radius: 8px;
+      box-sizing: border-box;
+      outline: none;
     }
-  } catch (error) {
-    alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
-    console.error(error);
-    submitBtn.disabled = false;
-    submitBtn.innerText = "บันทึกข้อมูล";
-  }
-});
+    
+    .row { display: flex; gap: 10px; }
+    .col { flex: 1; }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 25px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background-color: #06C755;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button:active { background-color: #05a044; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>⚖️ บันทึกสุขภาพประจำวัน</h2>
+    <div id="userGreeting" class="greeting">กำลังโหลดข้อมูล LINE...</div>
+
+    <form id="healthForm">
+      <!-- 1. น้ำหนักตัว -->
+      <label for="weightInput">น้ำหนักตัว (kg) <span style="color:red;">*</span>:</label>
+      <input type="number" id="weightInput" step="0.1" placeholder="เช่น 65.5" inputmode="decimal" required>
+
+      <!-- 2. อาการวันนี้ -->
+      <label for="symptomInput">อาการวันนี้:</label>
+      <select id="symptomInput">
+        <option value="ปกติ">ปกติ / ไม่มีอาการ</option>
+        <option value="เหนื่อยง่าย/แน่นหน้าอก">เหนื่อยง่าย / แน่นหน้าอก</option>
+        <option value="ขาบวมกดบุ๋ม">ขาบวมกดบุ๋ม</option>
+        <option value="นอนราบไม่ได้">นอนราบไม่ได้</option>
+        <option value="เวียนศีรษะ/หน้ามืด">เวียนศีรษะ / หน้ามืด</option>
+      </select>
+
+      <!-- 3. ความดันตัวบน & ความดันตัวล่าง -->
+      <div class="row">
+        <div class="col">
+          <label for="bpSysInput">ความดันตัวบน:</label>
+          <input type="number" id="bpSysInput" placeholder="เช่น 120" inputmode="numeric">
+        </div>
+        <div class="col">
+          <label for="bpDiaInput">ความดันตัวล่าง:</label>
+          <input type="number" id="bpDiaInput" placeholder="เช่น 80" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- 4. อัตราการเต้นหัวใจ -->
+      <label for="hrInput">อัตราการเต้นหัวใจ (ครั้ง/นาที):</label>
+      <input type="number" id="hrInput" placeholder="เช่น 75" inputmode="numeric">
+
+      <!-- 5. ปริมาณน้ำเข้า & ปริมาณน้ำออก -->
+      <div class="row">
+        <div class="col">
+          <label for="fluidInInput">ปริมาณน้ำเข้า (ml):</label>
+          <input type="number" id="fluidInInput" placeholder="เช่น 1000" inputmode="numeric">
+        </div>
+        <div class="col">
+          <label for="fluidOutInput">ปริมาณน้ำออก (ml):</label>
+          <input type="number" id="fluidOutInput" placeholder="เช่น 1200" inputmode="numeric">
+        </div>
+      </div>
+
+      <button type="button" onclick="submitData()">บันทึกข้อมูล</button>
+    </form>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------------
+    // อย่าลืมแก้ไข 2 ตัวแปรนี้ให้เป็นของคุณนะครับ
+    // -------------------------------------------------------------------
+    const POWER_AUTOMATE_URL = "ใส่_HTTP_POST_URL_จาก_POWER_AUTOMATE_ที่นี่";
+    const LIFF_ID = "2005564608-AbCdEfGh"; // ใส่ LIFF ID ของคุณ
+
+    let lineProfile = null;
+
+    async function initLIFF() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          lineProfile = await liff.getProfile();
+          document.getElementById("userGreeting").innerText = "สวัสดีครับ คุณ " + lineProfile.displayName;
+        }
+      } catch (err) {
+        console.error("LIFF Error:", err);
+        document.getElementById("userGreeting").innerText = "ไม่สามารถเชื่อมต่อ LINE ได้";
+      }
+    }
+    initLIFF();
+
+    async function submitData() {
+      const weightVal = document.getElementById("weightInput").value;
+
+      if (!weightVal || weightVal <= 0) {
+        alert("กรุณากรอกตัวเลขน้ำหนักก่อนครับ");
+        return;
+      }
+
+      if (!lineProfile) {
+        alert("ไม่พบข้อมูลผู้ใช้ LINE กรุณาลองเปิดแอปใหม่อีกครั้ง");
+        return;
+      }
+
+      // ดึงค่านำส่งเข้า Power Automate เพื่อเขียนลง Excel
+      const payload = {
+        timestamp: new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
+        lineUserId: lineProfile.userId,
+        weight: parseFloat(weightVal),
+        symptoms: document.getElementById("symptomInput").value,
+        bpSys: document.getElementById("bpSysInput").value || "-",
+        bpDia: document.getElementById("bpDiaInput").value || "-",
+        heartRate: document.getElementById("hrInput").value || "-",
+        fluidIn: document.getElementById("fluidInInput").value || "-",
+        fluidOut: document.getElementById("fluidOutInput").value || "-"
+      };
+
+      try {
+        await fetch(POWER_AUTOMATE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        alert("บันทึกข้อมูลสุขภาพเรียบร้อยแล้วครับ!");
+        liff.closeWindow();
+      } catch (error) {
+        alert("เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่อีกครั้ง");
+        console.error(error);
+      }
+    }
+  </script>
+
+</body>
+</html>
